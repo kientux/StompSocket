@@ -317,46 +317,33 @@ public class StompClient {
         self.closeSocket()
     }
     
-    // Reconnect after one sec or arg, if reconnect is available
+    /// Reconnect every `time` seconds
+    /// - Parameters:
+    ///   - request: request
+    ///   - connectionHeaders: connectionHeaders
+    ///   - time: time interval, defaults to 10 seconds
+    ///   - force: force reconnect even when websocket is currently connected. Defaults to `false`.
     public func reconnect(request: URLRequest,
                           connectionHeaders: [CommandHeader: String] = [:],
-                          time: TimeInterval = 5.0) {
+                          time: TimeInterval = 10,
+                          force: Bool = false) {
         reconnectTimer = Timer.scheduledTimer(withTimeInterval: time, repeats: true) { [weak self] _ in
-            self?.reconnectLogic(request: request, connectionHeaders: connectionHeaders)
+            self?.reconnectLogic(request: request, connectionHeaders: connectionHeaders, force: force)
         }
     }
     
     private func reconnectLogic(request: URLRequest,
-                                connectionHeaders: [CommandHeader: String] = [:]) {
-        // Check if connection is alive or dead
-        if !isConnected {
-            self.checkConnectionHeader(connectionHeaders: connectionHeaders)
-            ? self.openSocketWithURLRequest(request: request, connectionHeaders: connectionHeaders)
-            : self.openSocketWithURLRequest(request: request)
+                                connectionHeaders: [CommandHeader: String] = [:],
+                                force: Bool) {
+        if !isConnected || force {
+            openSocketWithURLRequest(request: request,
+                                     connectionHeaders: connectionHeaders)
         }
     }
     
     public func stopReconnect() {
         reconnectTimer?.invalidate()
         reconnectTimer = nil
-    }
-    
-    private func checkConnectionHeader(connectionHeaders: [CommandHeader: String] = [:]) -> Bool{
-        if (connectionHeaders.isEmpty) {
-            // No connection header
-            return false
-        } else {
-            // There is a connection header
-            return true
-        }
-    }
-    
-    // Autodisconnect with a given time
-    public func autoDisconnect(time: Double) {
-        DispatchQueue.main.asyncAfter(deadline: .now() + time) {
-            // Disconnect the socket
-            self.disconnect()
-        }
     }
 }
 
