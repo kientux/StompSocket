@@ -14,6 +14,8 @@ public class FoundationWebSocket: NSObject, WebSocketProtocol, URLSessionWebSock
                                           delegate: self,
                                           delegateQueue: .main)
     
+    public var logger: Logger = DefaultLogger()
+    
     public var eventListener: ((WebSocketEvent) -> Void)?
     
     public var isConnected: Bool {
@@ -35,9 +37,9 @@ public class FoundationWebSocket: NSObject, WebSocketProtocol, URLSessionWebSock
     public func send(string: String) {
         checkState()
         
-        task?.send(.string(string), completionHandler: { error in
+        task?.send(.string(string), completionHandler: { [weak self] error in
             if let error = error {
-                print("Error send string:", error)
+                self?.logger.error(message: "[FoundationWebSocket] Error send string: \(error)")
             }
         })
     }
@@ -45,9 +47,9 @@ public class FoundationWebSocket: NSObject, WebSocketProtocol, URLSessionWebSock
     public func send(data: Data) {
         checkState()
         
-        task?.send(.data(data), completionHandler: { error in
+        task?.send(.data(data), completionHandler: { [weak self] error in
             if let error = error {
-                print("Error send data:", error)
+                self?.logger.error(message: "[FoundationWebSocket] Error send data: \(error)")
             }
         })
     }
@@ -55,11 +57,11 @@ public class FoundationWebSocket: NSObject, WebSocketProtocol, URLSessionWebSock
     public func ping() {
         checkState()
         
-        task?.sendPing(pongReceiveHandler: { error in
+        task?.sendPing(pongReceiveHandler: { [weak self] error in
             if let error = error {
-                print("Error send ping:", error)
+                self?.logger.error(message: "[FoundationWebSocket] Error send ping: \(error)")
             } else {
-                print("Received pong")
+                self?.logger.debug(message: "[FoundationWebSocket] Received pong")
             }
         })
     }
@@ -72,21 +74,21 @@ public class FoundationWebSocket: NSObject, WebSocketProtocol, URLSessionWebSock
             case .success(let message):
                 switch message {
                 case .string(let s):
-                    print("Received text message:", s)
+                    self?.logger.debug(message: "[FoundationWebSocket] Received text message: \(s)")
                     self?.eventListener?(.text(text: s))
                 case .data(let data):
                     if let s = String(data: data, encoding: .utf8) {
-                        print("Received data message:", s)
+                        self?.logger.debug(message: "[FoundationWebSocket] Received data message: \(s)")
                         self?.eventListener?(.text(text: s))
                     } else {
-                        print("Received data message:", data)
+                        self?.logger.debug(message: "[FoundationWebSocket] Received data message: \(data)")
                         self?.eventListener?(.data(data: data))
                     }
                 @unknown default:
-                    print("Received unknown message type")
+                    self?.logger.debug(message: "[FoundationWebSocket] Received unknown message type")
                 }
             case .failure(let error):
-                print("Received error:", error)
+                self?.logger.error(message: "[FoundationWebSocket] Received error: \(error)")
                 self?.eventListener?(.error(error: error))
             }
             
@@ -100,14 +102,14 @@ public class FoundationWebSocket: NSObject, WebSocketProtocol, URLSessionWebSock
     
     private func checkState() {
         if task?.state != .running {
-            print("FoundationWebSocket is not running. Current state:", task?.state.name ?? "")
+            logger.debug(message: "FoundationWebSocket is not running. Current state: \(task?.state.name ?? "")")
         }
     }
     
     public func urlSession(_ session: URLSession,
                            webSocketTask: URLSessionWebSocketTask,
                            didOpenWithProtocol protocol: String?) {
-        print("FoundationWebSocket didOpenWithProtocol", `protocol` ?? "")
+        logger.debug(message: "FoundationWebSocket didOpenWithProtocol \(`protocol` ?? "")")
         eventListener?(.connected)
     }
     
@@ -116,7 +118,7 @@ public class FoundationWebSocket: NSObject, WebSocketProtocol, URLSessionWebSock
                            didCloseWith closeCode: URLSessionWebSocketTask.CloseCode,
                            reason: Data?) {
         let reasonString = reason == nil ? nil : String(data: reason!, encoding: .utf8)
-        print("FoundationWebSocket didCloseWithCode", closeCode.name, "- reason:", reasonString ?? "")
+        logger.debug(message: "FoundationWebSocket didCloseWithCode \(closeCode.name) - reason: \(reasonString ?? "")")
         eventListener?(.disconnected(code: closeCode.rawValue, reason: reasonString))
         task = nil
     }

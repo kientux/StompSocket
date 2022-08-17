@@ -24,6 +24,8 @@ public class StompClient {
     public var isAutoPingEnabled: Bool = true
     public var autoPingInterval: TimeInterval = 10
     
+    public var logger: Logger = DefaultLogger()
+    
     public var isConnected: Bool {
         socket?.isConnected ?? false
     }
@@ -54,7 +56,6 @@ public class StompClient {
     private func handle(event: WebSocketEvent) {
         switch event {
         case .connected:
-            print("WebSocket is connected")
             if isAutoPingEnabled {
                 pingTimer?.invalidate()
                 pingTimer = Timer.scheduledTimer(timeInterval: autoPingInterval,
@@ -66,10 +67,11 @@ public class StompClient {
                 pingTimer?.invalidate()
             }
             
+            logger.debug(message: "[StompClient] WebSocket is connected, send connect frame")
             sendConnectFrame()
             
         case .disconnected(let code, let reason):
-            print("WebSocket disconnected with code: \(code), reason: \(reason ?? "nil")")
+            logger.debug(message: "[StompClient] WebSocket disconnected with code: \(code), reason: \(reason ?? "nil")")
             pingTimer?.invalidate()
             eventListener?(.disconnected)
             
@@ -81,7 +83,7 @@ public class StompClient {
                 processString(string: msg)
             }
         case .error(let error):
-            print("WebSocket error occurred: \(String(describing: error))")
+            logger.error(message: "[StompClient] WebSocket error occurred: \(String(describing: error))")
             pingTimer?.invalidate()
             eventListener?(.error(description: error.localizedDescription,
                                   detailMessage: nil))
@@ -182,28 +184,12 @@ public class StompClient {
         
         frameString += StompConsts.controlChar
         
-        print("Websocket sendFrame:", frameString)
+        logger.debug(message: "[StompClient] Websocket sendFrame: \(frameString)")
         socket?.send(string: frameString)
     }
     
     private func destinationFromHeader(header: [String: String]) -> String {
         header.first(where: { $0.key == "destination" })?.value ?? ""
-    }
-    
-    private func dictForJSONString(jsonStr: String?) -> AnyObject? {
-        guard let jsonStr = jsonStr else {
-            return nil
-        }
-        
-        do {
-            if let data = jsonStr.data(using: String.Encoding.utf8) {
-                return try JSONSerialization.jsonObject(with: data, options: .allowFragments) as AnyObject
-            }
-        } catch {
-            print("error serializing JSON: \(error)")
-        }
-        
-        return nil
     }
     
     private func receiveFrame(command: ResponseCommand, headers: [String: String], body: String?) {
